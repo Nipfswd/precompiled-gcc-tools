@@ -1,3 +1,4 @@
+
 name: Build Latest GCC
 
 on:
@@ -75,6 +76,71 @@ jobs:
           path: |
             gcc-*.tar.xz
             SHA256SUMS
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+  windows:
+    name: Build GCC (Windows x86_64)
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gmp
+            mingw-w64-x86_64-mpfr
+            mingw-w64-x86_64-mpc
+            mingw-w64-x86_64-isl
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-zstd
+            flex
+            bison
+            texinfo
+            curl
+            wget
+            tar
+            unzip
+            zip
+
+      - name: Build GCC for Windows
+        id: gcc
+        env:
+          PREFIX: /mingw64/gcc-latest
+          MAKEFLAGS: -j2
+        run: |
+          bash scripts/build-gcc-windows.sh
+
+      - name: Package GCC
+        run: |
+          VERSION="${{ steps.gcc.outputs.version }}"
+
+          cd /mingw64
+          zip -qr "$GITHUB_WORKSPACE/gcc-${VERSION}-windows-x86_64.zip" gcc-latest
+
+          cd "$GITHUB_WORKSPACE"
+          sha256sum "gcc-${VERSION}-windows-x86_64.zip" > SHA256SUMS-windows
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcc-${{ steps.gcc.outputs.version }}-windows-x86_64
+          path: |
+            gcc-*-windows-x86_64.zip
+            SHA256SUMS-windows
           retention-days: 30
           compression-level: 0
           if-no-files-found: error
